@@ -1,0 +1,49 @@
+name: procurement_scanner
+description: "Offline AI-powered procurement document scanner for Sinhala, Tamil, and English handwriting."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Camera & image handling
+  camera: ^0.10.5+9
+  image_cropper: ^12.2.1
+  image_picker: ^1.1.2
+
+  # On-device OCR (ML Kit — works offline after first run model download)
+  google_mlkit_text_recognition: ^0.13.0
+
+  # Precise decimal arithmetic
+  decimal: ^2.3.3
+
+  # PDF generation
+  pdf: ^3.11.1
+  printing: ^5.13.1
+
+  # File / path utilities
+  path_provider: ^2.1.4
+  permission_handler: ^11.3.1
+
+  # UI helpers
+  cupertino_icons: ^1.0.8
+  flutter_animate: ^4.5.0
+  gap: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+dependency_overrides:
+  archive: ^4.5.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
