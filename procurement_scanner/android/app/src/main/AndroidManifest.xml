@@ -38,6 +38,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
         <!-- ML Kit: disable automatic model download management if needed -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

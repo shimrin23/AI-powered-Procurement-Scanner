@@ -108,9 +108,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
           AndroidUiSettings(
             toolbarTitle: 'Crop Document',
             toolbarColor: AppTheme.surface,
-            toolbarWidgetColor: AppTheme.textPrimary,
+            toolbarWidgetColor: Colors.white,
             backgroundColor: AppTheme.background,
             activeControlsWidgetColor: AppTheme.primary,
+            hideBottomControls: false,
             aspectRatioPresets: [
               CropAspectRatioPreset.original,
               CropAspectRatioPreset.ratio4x3,
