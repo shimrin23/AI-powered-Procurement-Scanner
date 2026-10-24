@@ -70,14 +70,17 @@ class OcrService {
         // Confidence from bounding box area (proxy for recognition quality).
         final confidence = _estimateConfidence(line);
 
-        // Best-effort split: last number = amount, second-to-last = unit price,
-        // everything else forms the description.
+        // Best-effort split: for table rows of the form
+        // {qty} {unit price} {written total}, the last value is usually the
+        // written total, the second last the unit price, and the first numeric
+        // token the quantity. This keeps values aligned with the row order even
+        // when the OCR line contains short phrases or extra numbers.
         final amount = numericTokens.last;
         final unitPrice = numericTokens.length >= 2
             ? numericTokens[numericTokens.length - 2]
             : '';
-        final qty = numericTokens.length >= 3
-            ? numericTokens[numericTokens.length - 3]
+        final qty = numericTokens.isNotEmpty
+            ? numericTokens.first
             : '1';
 
         // Remove extracted numbers from text to get description.
@@ -104,9 +107,18 @@ class OcrService {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   List<String> _extractNumbers(String text) {
-    // Matches integers and decimals with optional comma separators.
-    final pattern = RegExp(r'\d{1,3}(?:[,\s]\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?');
-    return pattern.allMatches(text).map((m) => m.group(0)!).toList();
+    final pattern = RegExp(
+      r'\d{1,3}(?:[\s,]\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?|\d+[\s,]\d{3}(?:[\s,]\d{3})*(?:\.\d+)?',
+    );
+    final matches = pattern.allMatches(text).map((m) => m.group(0)!).toList();
+    final cleaned = <String>[];
+    for (final match in matches) {
+      final value = match.replaceAll(RegExp(r'\s+'), '');
+      if (value.isNotEmpty && !cleaned.contains(value)) {
+        cleaned.add(value);
+      }
+    }
+    return cleaned;
   }
 
   double _estimateConfidence(TextLine line) {

@@ -112,10 +112,36 @@ class CalculatorService {
   // ── Parsing helpers ─────────────────────────────────────────────────────────
 
   Decimal? _parseDecimal(String raw) {
-    // Remove currency symbols, spaces, thousands-separators, non-numeric chars.
-    final cleaned =
-        raw.replaceAll(RegExp(r'[^\d.,\-]'), '').replaceAll(',', '');
-    if (cleaned.isEmpty) return null;
+    if (raw.trim().isEmpty) return null;
+
+    String cleaned = raw.trim();
+    cleaned = cleaned.replaceAll(
+      RegExp(r'(?:rs|lkr|usd|eur|gbp|inr)\.?', caseSensitive: false),
+      '',
+    );
+    cleaned = cleaned.replaceAll(RegExp(r'[^0-9,\.\-]'), '');
+
+    // Handle OCR artefacts such as "1,234.56", "1.234,56", and "12 345,67".
+    if (cleaned.contains(',') && cleaned.contains('.')) {
+      final lastComma = cleaned.lastIndexOf(',');
+      final lastDot = cleaned.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        cleaned = cleaned.replaceAll('.', '').replaceAll(',', '.');
+      } else {
+        cleaned = cleaned.replaceAll(',', '');
+      }
+    } else if (cleaned.contains(',')) {
+      final commaParts = cleaned.split(',');
+      if (commaParts.length > 1 && commaParts.last.length <= 2) {
+        cleaned = cleaned.replaceAll(',', '.');
+      } else {
+        cleaned = cleaned.replaceAll(',', '');
+      }
+    }
+
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), '');
+    if (cleaned.isEmpty || cleaned == '-' || cleaned == '.') return null;
+
     try {
       return Decimal.parse(cleaned);
     } catch (_) {
@@ -125,15 +151,28 @@ class CalculatorService {
 
   String _format(Decimal d) => d.toStringAsFixed(2);
 
-  /// Heuristic: find the largest number in the OCR text — often the grand total.
   Decimal? _extractTotalFromText(String text) {
-    final pattern = RegExp(r'\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?');
-    final matches = pattern.allMatches(text);
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) return null;
+
+    final keywordPattern = RegExp(
+      r'(grand\s*total|total\s*amount|net\s*total|sub\s*total|subtotal|total)\s*[:=]?\s*(?:rs\.?\s*)?(\d[\d,\s\.\-]*)',
+      caseSensitive: false,
+    );
+    for (final match in keywordPattern.allMatches(normalized)) {
+      final candidate = match.group(2)?.trim();
+      if (candidate == null || candidate.isEmpty) continue;
+      final parsed = _parseDecimal(candidate);
+      if (parsed != null) return parsed;
+    }
+
+    final pattern = RegExp(r'\d{1,3}(?:[\s,]\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?');
     Decimal? largest;
-    for (final m in matches) {
-      final d = _parseDecimal(m.group(0)!);
-      if (d != null && (largest == null || d > largest)) {
-        largest = d;
+    for (final match in pattern.allMatches(normalized)) {
+      final value = _parseDecimal(match.group(0)!);
+      if (value == null) continue;
+      if (largest == null || value > largest) {
+        largest = value;
       }
     }
     return largest;
