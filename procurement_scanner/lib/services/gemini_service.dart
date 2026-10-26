@@ -79,20 +79,32 @@ class GeminiService {
       {
         'text': '''
 You are an expert procurement and receipt document scanner.
-Your task is to transcribe and extract line items and numbers from bills, handwritten invoices, and receipts written in English, Sinhala, or Tamil.
+Your task is to transcribe and extract line items, prices, VAT details, and totals from bills, handwritten invoices, and receipts written in English, Sinhala, or Tamil.
 
 Instructions:
 1. If multiple images are provided, they represent consecutive pages (Page 1, Page 2, etc.) of the same document or multi-page invoice. Transcribe all line items across all pages in chronological order.
-2. Accurately transcribe line items (support Sinhala, Tamil, and English handwriting).
-3. For each line item:
+2. Support various document formats, table layouts, column orders, and templates. Identify values by column headers and document context rather than assuming fixed positions.
+3. Distinguish Unit Price (cost per individual item) from Item Total / Amount (line total for quantity × price).
+4. Accurately transcribe line items (support Sinhala, Tamil, and English handwriting and print).
+5. For each line item:
    - "description": name of the item or service (preserve Sinhala / Tamil / English characters).
    - "quantity": quantity (e.g. "1", "2.5"). If none written, use "1".
-   - "unit_price": unit price as a decimal string (e.g. "150.00").
+   - "unit_price": unit price as written in the document (e.g. "150.00").
+   - "unit_price_excl_vat": unit price excluding VAT if explicitly indicated by columns/notes, or null.
+   - "unit_price_incl_vat": unit price including VAT if explicitly indicated by columns/notes, or null.
+   - "vat_rate": VAT rate explicitly stated for this item or document (e.g. "18%", "0%"), or null.
+   - "vat_amount": VAT amount for this line item if written, or null.
+   - "price_vat_status": "inclusive", "exclusive", or "unspecified" based on headings (e.g. "Inc. VAT", "Excl. VAT").
    - "amount": line total amount as written on the receipt (e.g. "300.00").
-   - "confidence": confidence score from 0.0 to 1.0 (e.g. 0.95).
-4. "written_total": the grand total or final amount written on the document (typically on the last page), or null if not present.
-5. "raw_text": full text transcription of all text detected across all document pages.
-6. "warnings": list of notes if any handwriting is unreadable or ambiguous.
+   - "confidence": confidence score from 0.0 to 1.0 (e.g. 0.95). If handwriting or meaning is ambiguous, lower the confidence (< 0.8) and add a note to warnings.
+6. Document-level context:
+   - "written_subtotal": subtotal amount before VAT if present, or null.
+   - "written_vat_total": total VAT amount printed on document, or null.
+   - "written_total": the grand total or final amount written on the document, or null if not present.
+   - "document_vat_rate": global VAT rate mentioned on document (e.g. "18%"), or null.
+   - "document_price_status": "inclusive", "exclusive", or "unspecified" for the overall document.
+   - "raw_text": full text transcription of all text detected across all document pages.
+   - "warnings": list of notes if any handwriting is unreadable, ambiguous, or if VAT inclusion is unclear.
 
 Respond ONLY with valid JSON in this exact structure without markdown code fences:
 {
@@ -101,11 +113,20 @@ Respond ONLY with valid JSON in this exact structure without markdown code fence
       "description": "Item description",
       "quantity": "2",
       "unit_price": "150.00",
+      "unit_price_excl_vat": null,
+      "unit_price_incl_vat": null,
+      "vat_rate": "18%",
+      "vat_amount": null,
+      "price_vat_status": "unspecified",
       "amount": "300.00",
       "confidence": 0.95
     }
   ],
+  "written_subtotal": null,
+  "written_vat_total": null,
   "written_total": "300.00",
+  "document_vat_rate": "18%",
+  "document_price_status": "unspecified",
   "raw_text": "transcription",
   "warnings": []
 }
@@ -204,11 +225,24 @@ Respond ONLY with valid JSON in this exact structure without markdown code fence
         final amount = rawItem['amount']?.toString() ?? '0.00';
         final conf = (rawItem['confidence'] as num?)?.toDouble() ?? 0.95;
 
+        PriceVatStatus itemPriceStatus = PriceVatStatus.unspecified;
+        final pStatusStr = rawItem['price_vat_status']?.toString().toLowerCase();
+        if (pStatusStr == 'inclusive') {
+          itemPriceStatus = PriceVatStatus.inclusive;
+        } else if (pStatusStr == 'exclusive') {
+          itemPriceStatus = PriceVatStatus.exclusive;
+        }
+
         items.add(LineItem(
           description: desc,
           rawQuantity: qty,
           rawUnitPrice: unitPrice,
           rawAmount: amount,
+          rawUnitPriceExclVat: rawItem['unit_price_excl_vat']?.toString(),
+          rawUnitPriceInclVat: rawItem['unit_price_incl_vat']?.toString(),
+          rawVatRate: rawItem['vat_rate']?.toString(),
+          rawVatAmount: rawItem['vat_amount']?.toString(),
+          priceVatStatus: itemPriceStatus,
           confidence: conf,
         ));
       }
@@ -223,12 +257,27 @@ Respond ONLY with valid JSON in this exact structure without markdown code fence
 
     final fullText = data['raw_text']?.toString() ?? '';
     final writtenTotal = data['written_total']?.toString();
+    final writtenSubtotal = data['written_subtotal']?.toString();
+    final writtenVatTotal = data['written_vat_total']?.toString();
+    final documentVatRate = data['document_vat_rate']?.toString();
+
+    final docStatusStr = data['document_price_status']?.toString().toLowerCase();
+    PriceVatStatus docPriceStatus = PriceVatStatus.unspecified;
+    if (docStatusStr == 'inclusive') {
+      docPriceStatus = PriceVatStatus.inclusive;
+    } else if (docStatusStr == 'exclusive') {
+      docPriceStatus = PriceVatStatus.exclusive;
+    }
 
     return OcrResult(
       rawText: fullText,
       lineItems: items,
       warnings: warningsList,
       writtenTotal: writtenTotal,
+      writtenSubtotal: writtenSubtotal,
+      writtenVatTotal: writtenVatTotal,
+      documentVatRate: documentVatRate,
+      documentPriceStatus: docPriceStatus,
     );
   }
 

@@ -21,38 +21,43 @@ class ExtractedFieldTile extends StatelessWidget {
     final Color borderColor;
     final Color badgeColor;
     final IconData badgeIcon;
-    final String badgeLabel;
+    final String badgeLabel = item.itemStatus.label;
 
-    if (item.lowConfidence) {
-      borderColor = AppTheme.warning.withOpacity(0.4);
-      badgeColor = AppTheme.warning;
-      badgeIcon = Icons.warning_amber_rounded;
-      badgeLabel = 'Low Confidence — Review';
-    } else if (item.matches) {
-      borderColor = AppTheme.accent.withOpacity(0.3);
-      badgeColor = AppTheme.accent;
-      badgeIcon = Icons.check_circle_rounded;
-      badgeLabel = 'Match';
-    } else {
-      borderColor = AppTheme.error.withOpacity(0.4);
-      badgeColor = AppTheme.error;
-      badgeIcon = Icons.cancel_rounded;
-      badgeLabel = 'Mismatch';
+    switch (item.itemStatus) {
+      case ItemStatus.correct:
+        borderColor = AppTheme.accent.withOpacity(0.3);
+        badgeColor = AppTheme.accent;
+        badgeIcon = Icons.check_circle_rounded;
+      case ItemStatus.incorrect:
+        borderColor = AppTheme.error.withOpacity(0.4);
+        badgeColor = AppTheme.error;
+        badgeIcon = Icons.cancel_rounded;
+      case ItemStatus.needsReview:
+        borderColor = AppTheme.warning.withOpacity(0.4);
+        badgeColor = AppTheme.warning;
+        badgeIcon = Icons.warning_amber_rounded;
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header row ──────────────────────────────────────────────────
+            // ── Header row: Item name and Status badge ───────────────────────
             Row(
               children: [
                 _IndexBadge(index: index + 1),
@@ -65,7 +70,7 @@ class ExtractedFieldTile extends StatelessWidget {
                     style: const TextStyle(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontSize: 14,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -76,57 +81,120 @@ class ExtractedFieldTile extends StatelessWidget {
               ],
             ),
 
-            const Gap(12),
+            const Gap(10),
             const Divider(height: 1),
             const Gap(10),
 
-            // ── Values grid ─────────────────────────────────────────────────
+            // ── Quantities and Unit Prices Grid ──────────────────────────────
             Row(
               children: [
                 _ValueCell(label: 'Quantity', value: item.rawQuantity),
-                _ValueCell(label: 'Unit Price', value: item.rawUnitPrice),
-                _ValueCell(label: 'Written Amt', value: item.writtenAmount),
+                _ValueCell(
+                  label: 'Price (Excl. VAT)',
+                  value: item.unitPriceExclVat ?? item.rawUnitPrice,
+                ),
+                _ValueCell(
+                  label: 'Price (Incl. VAT)',
+                  value: item.unitPriceInclVat ?? '—',
+                ),
               ],
             ),
 
             const Gap(8),
 
+            // ── VAT & Totals Audit Grid ──────────────────────────────────────
             Row(
               children: [
                 _ValueCell(
-                  label: 'Calc. Amount',
-                  value: item.calculatedAmount,
+                  label: 'VAT Rate',
+                  value: item.vatRatePercent,
+                  color: AppTheme.textSecond,
+                ),
+                _ValueCell(
+                  label: 'VAT Amount',
+                  value: item.calculatedVatAmount,
                   color: AppTheme.primary,
                 ),
                 _ValueCell(
-                  label: 'Difference',
-                  value: item.matches ? '0.00' : item.difference,
-                  color: item.matches ? AppTheme.accent : AppTheme.error,
+                  label: 'Expected Total',
+                  value: item.expectedItemTotal,
+                  color: AppTheme.primary,
                   bold: true,
                 ),
-                const Spacer(),
               ],
             ),
 
-            if (item.lowConfidence) ...[
+            const Gap(8),
+
+            // ── Detected vs. Expected Comparison Row ─────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceHigh,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  _ValueCell(
+                    label: 'Total Detected',
+                    value: item.writtenAmount,
+                  ),
+                  _ValueCell(
+                    label: 'Difference',
+                    value: item.matches ? '0.00' : item.difference,
+                    color: item.matches ? AppTheme.accent : AppTheme.error,
+                    bold: true,
+                  ),
+                  _ValueCell(
+                    label: 'Audit Status',
+                    value: item.itemStatus.label,
+                    color: badgeColor,
+                    bold: true,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Detailed Error Message / Warning Banner ───────────────────────
+            if (item.errorMessage != null && item.itemStatus != ItemStatus.correct) ...[
               const Gap(8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppTheme.warning.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(6),
+                  color: (item.itemStatus == ItemStatus.incorrect
+                          ? AppTheme.error
+                          : AppTheme.warning)
+                      .withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (item.itemStatus == ItemStatus.incorrect
+                            ? AppTheme.error
+                            : AppTheme.warning)
+                        .withOpacity(0.3),
+                  ),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.edit_note_rounded,
-                        color: AppTheme.warning, size: 14),
-                    Gap(6),
+                    Icon(
+                      item.itemStatus == ItemStatus.incorrect
+                          ? Icons.info_outline_rounded
+                          : Icons.edit_note_rounded,
+                      color: item.itemStatus == ItemStatus.incorrect
+                          ? AppTheme.error
+                          : AppTheme.warning,
+                      size: 15,
+                    ),
+                    const Gap(8),
                     Expanded(
                       child: Text(
-                        'Low OCR confidence. Please manually verify these values.',
+                        item.errorMessage!,
                         style: TextStyle(
-                            color: AppTheme.warning, fontSize: 11, height: 1.3),
+                          color: item.itemStatus == ItemStatus.incorrect
+                              ? AppTheme.error
+                              : AppTheme.warning,
+                          fontSize: 11,
+                          height: 1.3,
+                        ),
                       ),
                     ),
                   ],

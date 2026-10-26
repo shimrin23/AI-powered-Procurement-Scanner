@@ -75,8 +75,13 @@ class PdfService {
           pw.SizedBox(height: 16),
           _totalsSection(result),
 
+          if (result.discrepancyNotes.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            _discrepancySection(result.discrepancyNotes),
+          ],
+
           if (result.warnings.isNotEmpty) ...[
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 14),
             _warningsSection(result.warnings),
           ],
 
@@ -149,8 +154,8 @@ class PdfService {
           pw.SizedBox(height: 4),
           pw.Text(
             isOk
-                ? 'All calculations match the document.'
-                : 'Calculations do not match or discrepancy detected.',
+                ? 'All calculations and VAT amounts match the document.'
+                : 'Calculations, VAT rates, or grand totals have discrepancies.',
             style: pw.TextStyle(fontSize: 10, color: fg),
           ),
         ],
@@ -176,9 +181,10 @@ class PdfService {
       headers: [
         'Description',
         'Qty',
-        'Unit Price',
-        'Written Amt',
-        'Calc. Amt',
+        'Price (Excl)',
+        'VAT',
+        'Expected',
+        'Detected',
         'Diff',
         'Status',
       ],
@@ -186,25 +192,28 @@ class PdfService {
           .map((r) => [
                 r.description,
                 r.rawQuantity,
-                r.rawUnitPrice,
+                r.unitPriceExclVat ?? r.rawUnitPrice,
+                r.calculatedVatAmount,
+                r.expectedItemTotal,
                 r.writtenAmount,
-                r.calculatedAmount,
                 r.difference,
-                r.matches ? 'OK' : 'Wrong',
+                r.itemStatus == ItemStatus.correct
+                    ? 'OK'
+                    : (r.itemStatus == ItemStatus.incorrect ? 'Wrong' : 'Review'),
               ])
           .toList(),
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
-        fontSize: 9,
+        fontSize: 8.5,
         fontFallback: fontFallbacks,
       ),
       cellStyle: pw.TextStyle(
-        fontSize: 9,
+        fontSize: 8,
         fontFallback: fontFallbacks,
       ),
       cellAlignments: {
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.center,
+        6: pw.Alignment.centerRight,
+        7: pw.Alignment.center,
       },
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
@@ -220,16 +229,56 @@ class PdfService {
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('Totals',
+            pw.Text('Financial & Tax Totals',
                 style:
                     pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 6),
-            _totalRow('Computed Total', result.computedTotal),
+            if (result.subtotalCalculated != null)
+              _totalRow('Subtotal (Excl. VAT)', result.subtotalCalculated!),
+            if (result.totalVatCalculated != null)
+              _totalRow('Total VAT Amount', result.totalVatCalculated!,
+                  color: PdfColors.blue800),
+            _totalRow('Computed Grand Total', result.computedTotal,
+                color: PdfColors.black),
             if (result.writtenTotal != null)
-              _totalRow('Written Total', result.writtenTotal!),
+              _totalRow('Written Grand Total', result.writtenTotal!),
             if (result.totalDifference != null)
-              _totalRow('Difference', result.totalDifference!,
-                  color: PdfColors.red700),
+              _totalRow(
+                'Grand Total Variance',
+                result.totalDifference!,
+                color: result.grandTotalDiscrepancy
+                    ? PdfColors.red700
+                    : PdfColors.green700,
+              ),
+          ],
+        ),
+      );
+
+  pw.Widget _discrepancySection(List<String> notes) => pw.Container(
+        padding: const pw.EdgeInsets.all(10),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.red50,
+          border: pw.Border.all(color: PdfColors.red300, width: 0.5),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Discrepancies Detected',
+              style: pw.TextStyle(
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.red900,
+              ),
+            ),
+            pw.SizedBox(height: 6),
+            ...notes.map((n) => pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 3),
+                  child: pw.Text('- $n',
+                      style: const pw.TextStyle(
+                          fontSize: 9, color: PdfColors.red900)),
+                )),
           ],
         ),
       );

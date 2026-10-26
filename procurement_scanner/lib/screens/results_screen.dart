@@ -109,7 +109,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 .fadeIn(duration: 500.ms)
                 .slideY(begin: -0.1),
 
-            const Gap(16),
+            const Gap(14),
+
+            // ── Document-level audit summary metrics ─────────────────────
+            _AuditSummaryCard(result: _result).animate().fadeIn(delay: 50.ms),
+
+            const Gap(14),
+
+            // ── Financial & VAT discrepancies breakdown ──────────────────
+            if (_result.discrepancyNotes.isNotEmpty) ...[
+              _DiscrepanciesCard(notes: _result.discrepancyNotes)
+                  .animate()
+                  .fadeIn(delay: 80.ms),
+              const Gap(14),
+            ],
 
             // ── Warnings ─────────────────────────────────────────────────
             if (_result.warnings.isNotEmpty) ...[
@@ -380,6 +393,183 @@ class _WarningsCard extends StatelessWidget {
   }
 }
 
+class _AuditSummaryCard extends StatelessWidget {
+  const _AuditSummaryCard({required this.result});
+  final VerificationResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Document Audit Summary',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const Gap(10),
+          Row(
+            children: [
+              Expanded(
+                child: _AuditMetricTile(
+                  title: 'Item Errors',
+                  value: '${result.itemTotalErrorsCount}',
+                  isError: result.itemTotalErrorsCount > 0,
+                  icon: Icons.receipt_long_rounded,
+                ),
+              ),
+              const Gap(8),
+              Expanded(
+                child: _AuditMetricTile(
+                  title: 'VAT Errors',
+                  value: '${result.vatErrorsCount}',
+                  isError: result.vatErrorsCount > 0,
+                  icon: Icons.percent_rounded,
+                ),
+              ),
+              const Gap(8),
+              Expanded(
+                child: _AuditMetricTile(
+                  title: 'Grand Total',
+                  value: result.grandTotalDiscrepancy ? 'Mismatch' : 'OK',
+                  isError: result.grandTotalDiscrepancy,
+                  icon: Icons.account_balance_wallet_rounded,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuditMetricTile extends StatelessWidget {
+  const _AuditMetricTile({
+    required this.title,
+    required this.value,
+    required this.isError,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final bool isError;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isError ? AppTheme.error : AppTheme.accent;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const Gap(4),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const Gap(2),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscrepanciesCard extends StatelessWidget {
+  const _DiscrepanciesCard({required this.notes});
+  final List<String> notes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 18),
+              Gap(8),
+              Text(
+                'Financial & VAT Discrepancies',
+                style: TextStyle(
+                  color: AppTheme.error,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const Gap(8),
+          ...notes.map(
+            (n) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ',
+                      style: TextStyle(
+                          color: AppTheme.error,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      n,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TotalsCard extends StatelessWidget {
   const _TotalsCard({required this.result});
   final VerificationResult result;
@@ -397,7 +587,7 @@ class _TotalsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Totals',
+            'Financial & Tax Totals',
             style: TextStyle(
                 color: AppTheme.textPrimary,
                 fontWeight: FontWeight.w700,
@@ -406,25 +596,68 @@ class _TotalsCard extends StatelessWidget {
           const Gap(12),
           const Divider(height: 1),
           const Gap(12),
-          _TotalRow(
-              label: 'Computed Total',
-              value: result.computedTotal,
-              color: AppTheme.primary),
-          if (result.writtenTotal != null) ...[
+
+          // Subtotal
+          if (result.subtotalCalculated != null) ...[
+            _TotalRow(
+              label: 'Computed Subtotal (Excl. VAT)',
+              value: result.subtotalCalculated!,
+            ),
+            if (result.writtenSubtotal != null) ...[
+              const Gap(6),
+              _TotalRow(
+                label: 'Written Subtotal',
+                value: result.writtenSubtotal!,
+              ),
+            ],
             const Gap(8),
-            _TotalRow(label: 'Written Total', value: result.writtenTotal!),
+            const Divider(height: 1),
+            const Gap(8),
+          ],
+
+          // Total VAT
+          if (result.totalVatCalculated != null) ...[
+            _TotalRow(
+              label: 'Computed Total VAT',
+              value: result.totalVatCalculated!,
+              color: AppTheme.primary,
+            ),
+            if (result.writtenVatTotal != null) ...[
+              const Gap(6),
+              _TotalRow(
+                label: 'Written VAT Total',
+                value: result.writtenVatTotal!,
+              ),
+            ],
+            const Gap(8),
+            const Divider(height: 1),
+            const Gap(8),
+          ],
+
+          // Grand Total
+          _TotalRow(
+            label: 'Computed Grand Total',
+            value: result.computedTotal,
+            color: AppTheme.primary,
+          ),
+          if (result.writtenTotal != null) ...[
+            const Gap(6),
+            _TotalRow(
+              label: 'Written Grand Total',
+              value: result.writtenTotal!,
+            ),
           ],
           if (result.totalDifference != null) ...[
-            const Gap(8),
+            const Gap(6),
             _TotalRow(
-              label: 'Difference',
+              label: 'Grand Total Variance',
               value: result.totalDifference!,
-              color: result.totalDifference == '0.00'
-                  ? AppTheme.accent
-                  : AppTheme.error,
-              icon: result.totalDifference == '0.00'
-                  ? Icons.check_circle_outline_rounded
-                  : Icons.error_outline_rounded,
+              color: result.grandTotalDiscrepancy
+                  ? AppTheme.error
+                  : AppTheme.accent,
+              icon: result.grandTotalDiscrepancy
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
             ),
           ],
         ],

@@ -1,3 +1,23 @@
+/// Item-level verification outcome
+enum ItemStatus {
+  correct,
+  incorrect,
+  needsReview,
+}
+
+extension ItemStatusX on ItemStatus {
+  String get label {
+    switch (this) {
+      case ItemStatus.correct:
+        return 'CORRECT';
+      case ItemStatus.incorrect:
+        return 'INCORRECT';
+      case ItemStatus.needsReview:
+        return 'NEEDS REVIEW';
+    }
+  }
+}
+
 /// The overall verification status of a scanned document.
 enum VerificationStatus {
   /// All extracted calculations match the computed values.
@@ -25,11 +45,11 @@ extension VerificationStatusX on VerificationStatus {
   String get description {
     switch (this) {
       case VerificationStatus.calculationsMatch:
-        return 'All extracted line-item amounts and totals match the computed values.';
+        return 'All extracted line-item amounts, VAT calculations, and totals match the computed values.';
       case VerificationStatus.discrepancyDetected:
-        return 'One or more written amounts differ from computed values. Please review the highlighted fields.';
+        return 'One or more written amounts or VAT calculations differ from computed values. Please review the highlighted fields.';
       case VerificationStatus.manualReviewRequired:
-        return 'Some values could not be recognised with sufficient confidence. Human review is required before accepting this document.';
+        return 'Some values could not be recognised with sufficient confidence or require user confirmation. Human review is recommended.';
     }
   }
 }
@@ -38,23 +58,33 @@ extension VerificationStatusX on VerificationStatus {
 class VerificationResult {
   final VerificationStatus status;
 
-  /// Per-item: (writtenAmount, calculatedAmount, difference)
+  /// Per-item verification results.
   final List<ItemVerification> itemResults;
 
   /// Written subtotal / grand total found in the document, if any.
   final String? writtenTotal;
 
-  /// Computed sum of all item amounts.
+  /// Computed sum of all expected item totals.
   final String computedTotal;
 
   /// Difference between written and computed total (negative = document has less).
   final String? totalDifference;
 
-  /// Raw OCR text extracted from the entire image.
+  /// Raw OCR text extracted from the document.
   final String rawOcrText;
 
   /// Any general warnings accumulated during extraction or verification.
   final List<String> warnings;
+
+  // ── Document-level audit summaries ──────────────────────────────────────────
+  final int vatErrorsCount;
+  final int itemTotalErrorsCount;
+  final bool grandTotalDiscrepancy;
+  final String? totalVatCalculated;
+  final String? writtenVatTotal;
+  final String? subtotalCalculated;
+  final String? writtenSubtotal;
+  final List<String> discrepancyNotes;
 
   const VerificationResult({
     required this.status,
@@ -64,6 +94,14 @@ class VerificationResult {
     this.totalDifference,
     required this.rawOcrText,
     this.warnings = const [],
+    this.vatErrorsCount = 0,
+    this.itemTotalErrorsCount = 0,
+    this.grandTotalDiscrepancy = false,
+    this.totalVatCalculated,
+    this.writtenVatTotal,
+    this.subtotalCalculated,
+    this.writtenSubtotal,
+    this.discrepancyNotes = const [],
   });
 }
 
@@ -72,8 +110,16 @@ class ItemVerification {
   final String rawQuantity;
   final String rawUnitPrice;
   final String writtenAmount;
-  final String calculatedAmount;
+
+  // ── Granular VAT & Price Audit Fields ───────────────────────────────────────
+  final String? unitPriceExclVat;
+  final String? unitPriceInclVat;
+  final String vatRatePercent; // e.g. "18%" or "0%" or "Unspecified"
+  final String calculatedVatAmount; // Calculated VAT per item total
+  final String expectedItemTotal; // Expected line amount from deterministic math
   final String difference;
+  final ItemStatus itemStatus; // CORRECT, INCORRECT, NEEDS REVIEW
+  final String? errorMessage;
   final bool matches;
   final bool lowConfidence;
 
@@ -82,9 +128,18 @@ class ItemVerification {
     required this.rawQuantity,
     required this.rawUnitPrice,
     required this.writtenAmount,
-    required this.calculatedAmount,
+    this.unitPriceExclVat,
+    this.unitPriceInclVat,
+    required this.vatRatePercent,
+    required this.calculatedVatAmount,
+    required this.expectedItemTotal,
     required this.difference,
+    required this.itemStatus,
+    this.errorMessage,
     required this.matches,
     required this.lowConfidence,
   });
+
+  /// Backward-compatibility getter for existing code referencing calculatedAmount.
+  String get calculatedAmount => expectedItemTotal;
 }

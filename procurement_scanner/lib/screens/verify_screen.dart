@@ -67,6 +67,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
         items: ocrResult.lineItems,
         rawText: ocrResult.rawText,
         writtenTotalRaw: ocrResult.writtenTotal,
+        writtenSubtotalRaw: ocrResult.writtenSubtotal,
+        writtenVatTotalRaw: ocrResult.writtenVatTotal,
+        documentVatRateRaw: ocrResult.documentVatRate,
+        documentPriceStatus: ocrResult.documentPriceStatus,
         ocrWarnings: ocrResult.warnings,
       );
 
