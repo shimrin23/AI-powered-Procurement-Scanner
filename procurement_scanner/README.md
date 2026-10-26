@@ -1,56 +1,41 @@
-# Procurement Scanner
+# AI-Powered Procurement Scanner
 
-> Offline AI-powered handwritten procurement document scanner for **Sinhala**, **Tamil**, and **English**.
+> Intelligent Multimodal Procurement Document & Bill Scanner supporting **Sinhala**, **Tamil**, and **English** handwriting with deterministic financial verification.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter)
 ![Platform](https://img.shields.io/badge/Platform-Android-green?logo=android)
-![Offline](https://img.shields.io/badge/Mode-100%25%20Offline-brightgreen)
+![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20Vision-orange?logo=google)
+![Languages](https://img.shields.io/badge/Languages-Sinhala%20%7C%20Tamil%20%7C%20English-purple)
 
 ---
 
-## Features
+## Key Features
 
 | Feature | Details |
-|---------|---------|
-| 📷 Document scanning | Camera capture with document guide overlay |
-| ✂️ Adjustable crop | Native crop UI with aspect-ratio presets |
-| 🤖 On-device OCR | Google ML Kit Latin recognizer; no cloud API |
-| 🌐 Languages | English/numbers ✓ · Tamil ⚠️ · Sinhala ⚠️ (manual review required) |
-| 🔢 Verification | Deterministic decimal arithmetic — never AI arithmetic |
-| 📄 PDF reports | Full report with images, tables, discrepancies, saved locally |
-| 🔒 Privacy | No login, no cloud, no backend, no internet required |
+|---|---|
+| 📄 **Multi-Page Scanning** | Upload and process multiple consecutive pages (Page 1, Page 2, etc.) for long invoices and bills |
+| 🤖 **Multimodal Vision AI** | Powered by Google Gemini Flash (`gemini-3.5-flash-lite` / `gemini-3.8-flash`) for accurate transcription |
+| 🌐 **Multilingual Handwriting** | Full OCR support for Sinhala (සිංහල), Tamil (தமிழ்), and English handwritten & printed text |
+| ✂️ **Sequential Crop UI** | Interactive cropping tool with presets (Original, 4:3, 16:9) and page indicators |
+| 🔢 **Deterministic Verification** | Math verification powered by high-precision decimal arithmetic (quantity × unit price = amount) |
+| 📑 **Clean PDF Reports** | Professional verification reports with Noto Sans Unicode font support and clean `OK`/`Wrong` status |
+| 🔒 **Secure Configuration** | Zero hardcoded secrets; API keys injected securely via compile-time `--dart-define` flags |
 
 ---
 
-## Screens
+## Scanning Workflow
 
 ```
-Home  →  Scan & Crop  →  Verify  →  Results
+[Camera / Multi-Page Gallery] 
+            ↓
+[Sequential Crop & Review] 
+            ↓
+[Swipeable Multi-Page Verification Preview] 
+            ↓
+[Gemini Multimodal Transcription & Calculation Engine] 
+            ↓
+[Results Screen: Edit Items, Verification Status, Save/Share PDF]
 ```
-
----
-
-## OCR Language Support
-
-| Language | Script | Support Level |
-|----------|--------|--------------|
-| English | Latin | Full support |
-| Tamil | Tamil | Current build does not run a Tamil recognizer; fields are flagged for manual review |
-| Sinhala | Sinhala | Current ML Kit integration does not support Sinhala; fields are flagged for manual review |
-
-> The app **never claims successful verification** for fields that could not be reliably recognised.
-> Low-confidence fields are always highlighted and require manual human review.
-
-### Offline model evaluation
-
-The current implementation uses Google ML Kit's on-device Latin text
-recognizer. It performs inference locally and does not send document images to
-a backend, but it is not a bundled multilingual handwriting model. Sinhala and
-handwritten Tamil therefore remain explicit limitations rather than being
-silently treated as supported. A future multilingual model must be evaluated
-for Tamil/Sinhala handwriting accuracy, Android ABI/runtime compatibility,
-package size and memory use, offline model licensing, and reproducible in-app
-bundling before it replaces this conservative fallback.
 
 ---
 
@@ -59,29 +44,31 @@ bundling before it replaces this conservative fallback.
 ```
 procurement_scanner/
 ├── lib/
-│   ├── main.dart               # Entry point
-│   ├── app.dart                # Root widget + routing
-│   ├── theme.dart              # Design system (colours, typography)
+│   ├── main.dart               # App entry point
+│   ├── app.dart                # MaterialApp setup & routes
+│   ├── theme.dart              # Dark theme design system & font fallbacks
+│   ├── config/
+│   │   └── api_config.dart     # Secure Gemini API configuration
+│   ├── models/
+│   │   ├── document_scan.dart  # Multi-page scan session model
+│   │   ├── line_item.dart      # Extracted line-item data model
+│   │   └── verification_result.dart # Math verification result model
 │   ├── screens/
-│   │   ├── home_screen.dart    # Screen 1: Home + CTA
-│   │   ├── scan_screen.dart    # Screen 2: Camera + crop
-│   │   ├── verify_screen.dart  # Screen 3: OCR trigger
-│   │   └── results_screen.dart # Screen 4: Results + PDF
-│   ├── widgets/
-│   │   ├── status_badge.dart         # Verification status banner
-│   │   └── extracted_field_tile.dart # Per-item result card
+│   │   ├── home_screen.dart    # Home dashboard & batch gallery picker
+│   │   ├── scan_screen.dart    # Camera scanning & gallery capture
+│   │   ├── verify_screen.dart  # Multi-page carousel preview & AI trigger
+│   │   └── results_screen.dart # Calculation audit, editor & PDF actions
 │   ├── services/
-│   │   ├── ocr_service.dart          # ML Kit OCR wrapper
-│   │   ├── calculator_service.dart   # Deterministic verification
-│   │   └── pdf_service.dart          # PDF generation
-│   └── models/
-│       ├── document_scan.dart        # Session data model
-│       ├── line_item.dart            # Extracted row model
-│       └── verification_result.dart  # Verification output model
+│   │   ├── gemini_service.dart # Multi-image Gemini Vision AI service
+│   │   ├── calculator_service.dart # High-precision decimal math engine
+│   │   └── pdf_service.dart    # Unicode-ready PDF report generator
+│   └── widgets/
+│       ├── extracted_field_tile.dart # Interactive line-item editor card
+│       └── status_badge.dart         # Overall verification status badge
 └── android/
     └── app/
-        ├── build.gradle.kts         # minSdk=21, multiDex
-        └── src/main/AndroidManifest.xml  # Permissions
+        ├── build.gradle.kts         # Android configuration
+        └── src/main/AndroidManifest.xml # Permissions (Camera, Internet, Storage)
 ```
 
 ---
@@ -90,110 +77,97 @@ procurement_scanner/
 
 ### Prerequisites
 
-- Flutter SDK 3.x or newer (https://docs.flutter.dev/get-started/install)
+- [Flutter SDK 3.x](https://docs.flutter.dev/get-started/install)
 - Android Studio or VS Code with Flutter extension
-- Android device or emulator (API 21+)
+- An Android device or emulator (API 21+)
+- A [Google Gemini API Key](https://aistudio.google.com/app/apikey)
 
-### 1. Install dependencies
+### 1. Clone the repository
 
 ```bash
-cd procurement_scanner
+git clone https://github.com/shimrin23/AI-powered-Procurement-Scanner.git
+cd AI-powered-Procurement-Scanner/procurement_scanner
+```
+
+### 2. Install dependencies
+
+```bash
 flutter pub get
 ```
 
-### 2. Run in debug mode
+### 3. Run the App
 
-Connect an Android device (enable USB debugging) or start an emulator, then:
-
-```bash
-flutter run
-```
-
-### 3. Build a release APK
+Pass your Gemini API key securely at build/run time using `--dart-define`:
 
 ```bash
-# Debug APK (no signing required, works on your own device):
-flutter build apk --debug
-
-# Release APK (recommended for phone installation):
-flutter build apk --release --split-per-abi
+flutter run --dart-define=GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 ```
 
-APKs are output to:
+### 4. Build a Release APK
+
+To create an optimized release APK for your phone:
+
+```bash
+flutter build apk --release --split-per-abi --dart-define=GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+```
+
+The generated APKs will be located at:
 ```
 build/app/outputs/flutter-apk/
-```
-
-### 4. Install on a phone
-
-```bash
-# Install via ADB (phone must be connected via USB)
-adb install build/app/outputs/flutter-apk/app-release.apk
-
-# Or copy the APK to your phone and open it (enable "Install unknown apps" in settings)
 ```
 
 ---
 
 ## Verification Logic
 
+For every extracted row:
 ```
-For each line item:
-  expected_amount = qty x unit_price          (decimal arithmetic)
-  difference      = |written_amount - expected_amount|
-  matches         = difference <= 0.01
-
-grand_total_computed = sum of expected_amounts
-
-Overall status:
-  Any field low-confidence?  -->  Manual Review Required
-  Any amount mismatch?       -->  Discrepancy Detected
-  All match, high-confidence -->  Calculations Match
+expected_amount = quantity × unit_price
+difference      = |written_amount - expected_amount|
+status          = difference <= 0.01 ? "OK" : "Wrong"
 ```
+
+Document Totals:
+```
+computed_grand_total = sum(expected_amount)
+total_difference     = |written_grand_total - computed_grand_total|
+```
+
+Overall Status:
+- **Calculations Match:** All line items and grand totals match accurately.
+- **Discrepancy Detected:** One or more written amounts differ from calculated amounts.
+- **Manual Review Required:** Unclear handwriting or missing values flagged for human check.
 
 ---
 
-## PDF Report Contents
+## PDF Verification Report
 
-1. Cover with scan timestamp and overall status
-2. Original document image + cropped image (side-by-side)
-3. Line item table: Description, Qty, Unit Price, Written Amount, Calculated Amount, Difference, Status
-4. Totals section (computed vs. written)
-5. Warnings (language limitations, low-confidence fields)
-6. Raw OCR output text
-7. Disclaimer footer
-
-PDFs are saved to the device's external storage (or app documents directory as fallback).
-
----
-
-## Known Limitations
-
-- **Sinhala**: Google ML Kit does not natively support the Sinhala script. Sinhala text will not be reliably extracted. The app will flag all values as requiring manual review.
-- **Tamil handwriting**: ML Kit has some Tamil support but handwritten Tamil recognition accuracy is limited. Results should always be verified manually.
-- **Poor image quality**: Very blurry, low-contrast, or skewed images may yield no extracted text.
-- **Table layout detection**: The heuristic parser works best with clearly-spaced tabular procurement forms.
+The generated PDF includes:
+1. **Header:** Document title, generation timestamp, and metadata.
+2. **Status Banner:** Clear overall audit outcome (`Status: OK` or `Status: Wrong`).
+3. **Line Items Table:** Complete extracted table with quantity, unit price, written amount, calculated amount, difference, and status. Full rendering support for Sinhala and Tamil characters via Google Noto Sans fonts.
+4. **Totals Audit:** Computed total vs. written total with exact variance highlighted.
+5. **Warnings Section:** Flagged unreadable words or ambiguous handwriting notes.
 
 ---
 
 ## Dependencies
 
 | Package | Version | Purpose |
-|---------|---------|---------|
-| camera | 0.10.5+ | Camera preview and capture |
-| image_cropper | 8.1.0+ | Native crop UI |
-| image_picker | 1.1.2+ | Gallery fallback |
-| google_mlkit_text_recognition | 0.13.0+ | On-device OCR |
-| decimal | 2.3.3+ | Precise decimal arithmetic |
-| pdf | 3.11.1+ | PDF generation |
-| printing | 5.13.1+ | PDF save and share |
-| path_provider | 2.1.4+ | Device file paths |
-| permission_handler | 11.3.1+ | Runtime permissions |
-| flutter_animate | 4.5.0+ | Micro-animations |
-| gap | 3.0.1+ | Spacing utility |
+|---|---|---|
+| `camera` | ^0.10.5 | Device camera capture & preview |
+| `image_cropper` | ^12.2.1 | Native document cropping UI with aspect ratios |
+| `image_picker` | ^1.1.2 | Multi-image gallery selection |
+| `decimal` | ^2.3.3 | Exact decimal arithmetic (avoiding floating-point errors) |
+| `pdf` | ^3.11.1 | Structured PDF document builder |
+| `printing` | ^5.13.1 | Native Android PDF print, save & share dialogs |
+| `path_provider` | ^2.1.4 | Access to local filesystem storage |
+| `permission_handler` | ^11.3.1 | Runtime camera and storage permissions |
+| `flutter_animate` | ^4.5.0 | Smooth micro-animations and loading transitions |
+| `gap` | ^3.0.1 | Layout spacing utility |
 
 ---
 
 ## License
 
-MIT
+This project is licensed under the MIT License.
