@@ -20,6 +20,11 @@ class AppTheme {
 
   // ── Typography ──────────────────────────────────────────────────────────────
   static const String fontFamily = 'Roboto';
+  static const List<String> fontFallbacks = [
+    'Noto Sans Sinhala',
+    'Noto Sans Tamil',
+    'sans-serif',
+  ];
 
   static ThemeData get darkTheme {
     final base = ThemeData.dark(useMaterial3: true);
@@ -107,6 +112,8 @@ class AppTheme {
         bodySmall: TextStyle(color: textMuted, fontSize: 12),
         labelLarge: TextStyle(
             color: textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+      ).apply(
+        fontFamilyFallback: fontFallbacks,
       ),
     );
   }

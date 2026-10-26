@@ -16,8 +16,6 @@ dependencies:
   image_cropper: ^12.2.1
   image_picker: ^1.1.2
 
-  # On-device OCR (ML Kit — works offline after first run model download)
-  google_mlkit_text_recognition: ^0.13.0
 
   # Precise decimal arithmetic
   decimal: ^2.3.3

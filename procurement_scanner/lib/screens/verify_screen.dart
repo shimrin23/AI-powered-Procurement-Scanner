@@ -3,21 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
 import '../models/document_scan.dart';
-import '../services/ocr_service.dart';
+import '../services/gemini_service.dart';
 import '../services/calculator_service.dart';
 import '../theme.dart';
 import 'results_screen.dart';
 
-/// Screen 3 — Shows the cropped image and triggers OCR + verification.
+/// Screen 3 — Shows the cropped image(s) and triggers OCR + verification.
 class VerifyScreen extends StatefulWidget {
-  const VerifyScreen({
+  VerifyScreen({
     super.key,
-    required this.originalImage,
-    required this.croppedImage,
-  });
+    List<File>? originalImages,
+    List<File>? croppedImages,
+    File? originalImage,
+    File? croppedImage,
+  })  : originalImages = originalImages ??
+            (originalImage != null ? [originalImage] : const []),
+        croppedImages = croppedImages ??
+            (croppedImage != null ? [croppedImage] : const []);
 
-  final File originalImage;
-  final File croppedImage;
+  final List<File> originalImages;
+  final List<File> croppedImages;
 
   @override
   State<VerifyScreen> createState() => _VerifyScreenState();
@@ -26,33 +31,50 @@ class VerifyScreen extends StatefulWidget {
 class _VerifyScreenState extends State<VerifyScreen> {
   bool _processing = false;
   String _statusText = '';
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   Future<void> _verifyDocument() async {
     setState(() {
       _processing = true;
-      _statusText = 'Running OCR…';
+      _statusText = widget.croppedImages.length > 1
+          ? 'Analyzing ${widget.croppedImages.length} pages with Gemini Flash…'
+          : 'Analyzing document with Gemini Flash…';
     });
 
     try {
-      // Step 1: OCR
+      // Step 1: Gemini Multimodal Vision API across all pages
       final ocrResult =
-          await OcrService.instance.recognise(widget.croppedImage);
+          await GeminiService.instance.recogniseAll(widget.croppedImages);
 
       if (!mounted) return;
       setState(() => _statusText = 'Verifying calculations…');
 
-      // Step 2: Calculate & verify
+      // Step 2: Calculate & verify mathematical accuracy
       final verResult = CalculatorService.instance.verify(
         items: ocrResult.lineItems,
         rawText: ocrResult.rawText,
+        writtenTotalRaw: ocrResult.writtenTotal,
         ocrWarnings: ocrResult.warnings,
       );
 
       if (!mounted) return;
 
       final scan = DocumentScan(
-        originalImage: widget.originalImage,
-        croppedImage: widget.croppedImage,
+        originalImages: widget.originalImages,
+        croppedImages: widget.croppedImages,
         lineItems: ocrResult.lineItems,
         verificationResult: verResult,
       );
@@ -83,10 +105,14 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pageCount = widget.croppedImages.length;
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Verify Document'),
+        title: Text(pageCount > 1
+            ? 'Verify Document ($pageCount Pages)'
+            : 'Verify Document'),
         backgroundColor: AppTheme.background,
         leading: _processing
             ? const SizedBox.shrink()
@@ -98,7 +124,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Cropped image preview ───────────────────────────────────────
+            // ── Cropped image preview / carousel ─────────────────────────────
             Expanded(
               child: Container(
                 margin: const EdgeInsets.all(16),
@@ -114,10 +140,95 @@ class _VerifyScreenState extends State<VerifyScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(15),
-                  child: Image.file(
-                    widget.croppedImage,
-                    fit: BoxFit.contain,
-                  ),
+                  child: pageCount <= 1
+                      ? Image.file(
+                          widget.croppedImages.isNotEmpty
+                              ? widget.croppedImages.first
+                              : File(''),
+                          fit: BoxFit.contain,
+                        )
+                      : Stack(
+                          children: [
+                            PageView.builder(
+                              controller: _pageController,
+                              itemCount: pageCount,
+                              onPageChanged: (index) {
+                                setState(() => _currentPage = index);
+                              },
+                              itemBuilder: (context, index) {
+                                return Image.file(
+                                  widget.croppedImages[index],
+                                  fit: BoxFit.contain,
+                                );
+                              },
+                            ),
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.7),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Page ${_currentPage + 1} of $pageCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_currentPage > 0)
+                              Positioned(
+                                left: 8,
+                                top: 0,
+                                bottom: 0,
+                                child: Center(
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_left_rounded,
+                                      color: Colors.white70,
+                                      size: 32,
+                                    ),
+                                    onPressed: () {
+                                      _pageController.previousPage(
+                                        duration: 300.ms,
+                                        curve: Curves.easeInOut,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            if (_currentPage < pageCount - 1)
+                              Positioned(
+                                right: 8,
+                                top: 0,
+                                bottom: 0,
+                                child: Center(
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: Colors.white70,
+                                      size: 32,
+                                    ),
+                                    onPressed: () {
+                                      _pageController.nextPage(
+                                        duration: 300.ms,
+                                        curve: Curves.easeInOut,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                 ),
               ).animate().fadeIn(duration: 500.ms).scaleXY(begin: 0.97),
             ),

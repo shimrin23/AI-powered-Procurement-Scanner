@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import '../models/document_scan.dart';
 import '../models/verification_result.dart';
 import '../services/pdf_service.dart';
@@ -23,37 +25,45 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   VerificationResult get _result => widget.scan.verificationResult!;
 
-  Future<void> _downloadPdf() async {
+  Future<void> _savePdf() async {
     setState(() => _generatingPdf = true);
     try {
-      final file = await PdfService.instance.generateReport(widget.scan);
-      if (!mounted) return;
-      _showSuccess('PDF saved to: ${file.path}');
+      final ts = widget.scan.scannedAt.millisecondsSinceEpoch;
+      final filename = 'procurement_report_$ts.pdf';
+      final bytes = await PdfService.instance.generatePdfBytes(widget.scan);
+
+      // Opens native Android "Save as PDF" dialog letting user choose folder manually
+      await Printing.layoutPdf(
+        name: filename,
+        onLayout: (PdfPageFormat format) async => bytes,
+      );
     } catch (e) {
       if (!mounted) return;
-      _showError('PDF generation failed: $e');
+      _showError('Could not open Save dialog: $e');
     } finally {
       if (mounted) setState(() => _generatingPdf = false);
     }
   }
 
-  void _showSuccess(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                color: Colors.white, size: 20),
-            const Gap(10),
-            Expanded(child: Text(msg)),
-          ],
-        ),
-        backgroundColor: AppTheme.accent,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 6),
-      ),
-    );
+  Future<void> _sharePdf() async {
+    setState(() => _generatingPdf = true);
+    try {
+      final ts = widget.scan.scannedAt.millisecondsSinceEpoch;
+      final filename = 'procurement_report_$ts.pdf';
+      final bytes = await PdfService.instance.generatePdfBytes(widget.scan);
+
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: filename,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError('PDF share failed: $e');
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
   }
+
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -77,6 +87,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
           onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            onPressed: _generatingPdf ? null : _sharePdf,
+            tooltip: 'Share PDF',
+          ),
           IconButton(
             icon: const Icon(Icons.home_rounded),
             onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
@@ -137,11 +152,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
             const Gap(24),
 
-            // ── PDF download ──────────────────────────────────────────────
+            // ── PDF actions ───────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _generatingPdf ? null : _downloadPdf,
+                onPressed: _generatingPdf ? null : _savePdf,
                 icon: _generatingPdf
                     ? const SizedBox(
                         width: 20,
@@ -151,9 +166,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.picture_as_pdf_rounded),
+                    : const Icon(Icons.save_alt_rounded),
                 label: Text(
-                  _generatingPdf ? 'Generating PDF…' : 'Download PDF Report',
+                  _generatingPdf ? 'Preparing PDF…' : 'Save PDF (Choose Location)',
                 ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
@@ -166,12 +181,30 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
             const Gap(12),
 
-            Center(
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton.icon(
+                onPressed: _generatingPdf ? null : _sharePdf,
+                icon: const Icon(Icons.share_rounded, size: 20),
+                label: const Text('Share PDF Report'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  foregroundColor: AppTheme.textPrimary,
+                  side: const BorderSide(color: AppTheme.border, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ).animate().fadeIn(delay: 450.ms),
+
+            const Gap(12),
+
+            Center(
+              child: TextButton.icon(
                 onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
-                icon: const Icon(Icons.document_scanner_rounded, size: 18),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('Scan Another Document'),
-              ).animate().fadeIn(delay: 450.ms),
+              ).animate().fadeIn(delay: 500.ms),
             ),
 
             const Gap(24),
@@ -208,6 +241,63 @@ class _ImageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (scan.croppedImages.length > 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Scanned Pages (${scan.croppedImages.length})',
+            style: const TextStyle(
+              color: AppTheme.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Gap(6),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: scan.croppedImages.length,
+              separatorBuilder: (_, __) => const Gap(10),
+              itemBuilder: (ctx, idx) => ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  children: [
+                    Image.file(
+                      scan.croppedImages[idx],
+                      height: 120,
+                      width: 90,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Page ${idx + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         Expanded(child: _thumb(context, scan.originalImage, 'Original')),

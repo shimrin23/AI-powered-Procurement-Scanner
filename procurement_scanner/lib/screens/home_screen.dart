@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme.dart';
 import 'scan_screen.dart';
+import 'verify_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -68,6 +72,33 @@ class HomeScreen extends StatelessWidget {
                     .fadeIn(delay: 400.ms, duration: 600.ms)
                     .scaleXY(begin: 0.95),
               ),
+
+              const Gap(16),
+
+              // ── Import from Gallery button ────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickFromGallery(context),
+                  icon: const Icon(Icons.photo_library_rounded, size: 22),
+                  label: const Text('Import from Gallery'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    minimumSize: const Size.fromHeight(56),
+                    side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+                    .animate()
+                    .fadeIn(delay: 500.ms, duration: 600.ms)
+                    .scaleXY(begin: 0.95),
+              ),
             ],
           ),
         ),
@@ -80,6 +111,73 @@ class HomeScreen extends StatelessWidget {
       context,
       MaterialPageRoute(builder: (_) => const ScanScreen()),
     );
+  }
+
+  Future<void> _pickFromGallery(BuildContext context) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFiles = await picker.pickMultiImage(
+        imageQuality: 100,
+      );
+
+      if (pickedFiles.isEmpty || !context.mounted) return;
+
+      final originalFiles = <File>[];
+      final croppedFiles = <File>[];
+
+      for (int i = 0; i < pickedFiles.length; i++) {
+        final original = File(pickedFiles[i].path);
+        originalFiles.add(original);
+
+        final pageTitle = pickedFiles.length > 1
+            ? 'Crop Page ${i + 1} of ${pickedFiles.length}'
+            : 'Crop Document';
+
+        final cropped = await ImageCropper().cropImage(
+          sourcePath: original.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: pageTitle,
+              toolbarColor: AppTheme.surface,
+              toolbarWidgetColor: Colors.white,
+              backgroundColor: AppTheme.background,
+              activeControlsWidgetColor: AppTheme.primary,
+              hideBottomControls: false,
+              aspectRatioPresets: [
+                CropAspectRatioPreset.original,
+                CropAspectRatioPreset.ratio4x3,
+                CropAspectRatioPreset.ratio16x9,
+              ],
+              initAspectRatio: CropAspectRatioPreset.original,
+              lockAspectRatio: false,
+            ),
+          ],
+        );
+
+        // If user cancelled cropping on a page, use original image for that page
+        croppedFiles.add(cropped != null ? File(cropped.path) : original);
+      }
+
+      if (!context.mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VerifyScreen(
+            originalImages: originalFiles,
+            croppedImages: croppedFiles,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not pick images: $e'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 }
 

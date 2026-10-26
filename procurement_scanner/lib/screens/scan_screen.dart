@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:gap/gap.dart';
 import '../theme.dart';
 import 'verify_screen.dart';
@@ -93,6 +94,66 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         _errorMessage = 'Could not capture photo: $e';
         _capturing = false;
       });
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFiles = await picker.pickMultiImage(imageQuality: 100);
+      if (pickedFiles.isEmpty || !mounted) return;
+
+      final originalFiles = <File>[];
+      final croppedFiles = <File>[];
+
+      for (int i = 0; i < pickedFiles.length; i++) {
+        final original = File(pickedFiles[i].path);
+        originalFiles.add(original);
+
+        final pageTitle = pickedFiles.length > 1
+            ? 'Crop Page ${i + 1} of ${pickedFiles.length}'
+            : 'Crop Document';
+
+        final cropped = await ImageCropper().cropImage(
+          sourcePath: original.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: pageTitle,
+              toolbarColor: AppTheme.surface,
+              toolbarWidgetColor: Colors.white,
+              backgroundColor: AppTheme.background,
+              activeControlsWidgetColor: AppTheme.primary,
+              hideBottomControls: false,
+              aspectRatioPresets: [
+                CropAspectRatioPreset.original,
+                CropAspectRatioPreset.ratio4x3,
+                CropAspectRatioPreset.ratio16x9,
+              ],
+              initAspectRatio: CropAspectRatioPreset.original,
+              lockAspectRatio: false,
+            ),
+          ],
+        );
+
+        croppedFiles.add(cropped != null ? File(cropped.path) : original);
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VerifyScreen(
+            originalImages: originalFiles,
+            croppedImages: croppedFiles,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not pick images: $e')),
+      );
     }
   }
 
@@ -205,10 +266,21 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                     const TextStyle(color: AppTheme.textSecond, fontSize: 14),
               ),
               const Gap(24),
-              ElevatedButton.icon(
-                onPressed: _initCamera,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _initCamera,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                  const Gap(12),
+                  OutlinedButton.icon(
+                    onPressed: _pickFromGallery,
+                    icon: const Icon(Icons.photo_library_rounded),
+                    label: const Text('From Files'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -253,25 +325,45 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                 style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
               ),
               const Gap(20),
-              GestureDetector(
-                onTap: _capturePhoto,
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withOpacity(0.5),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Pick from files / gallery icon
+                  IconButton(
+                    iconSize: 34,
+                    icon: const Icon(
+                      Icons.photo_library_rounded,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Pick from Gallery / Files',
+                    onPressed: _pickFromGallery,
                   ),
-                  child: const Icon(Icons.camera_rounded,
-                      color: AppTheme.primaryDark, size: 34),
-                ),
+
+                  // Shutter capture button
+                  GestureDetector(
+                    onTap: _capturePhoto,
+                    child: Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withValues(alpha: 0.5),
+                            blurRadius: 16,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.camera_rounded,
+                          color: AppTheme.primaryDark, size: 34),
+                    ),
+                  ),
+
+                  // Balance placeholder
+                  const SizedBox(width: 48),
+                ],
               ),
             ],
           ),
